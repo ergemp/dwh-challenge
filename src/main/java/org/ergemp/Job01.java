@@ -18,7 +18,7 @@ public class Job01 {
         // configure spark
         SparkSession spark = SparkSession
                 .builder()
-                .appName("reco.challenge.Job01")
+                .appName("dwh.challenge.Job01")
                 .master("local")
                 .getOrCreate();
 
