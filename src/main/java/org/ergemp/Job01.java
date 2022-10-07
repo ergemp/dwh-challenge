@@ -46,11 +46,17 @@ public class Job01 {
         Dataset<Row> categoryDf = spark.read().option("header",true).csv(categoryNamePath);
 
         productsDf.printSchema();
+        System.out.println(productsDf.count());
         ordersDf.printSchema();
+        System.out.println(ordersDf.count());
         orderItemsDf.printSchema();
+        System.out.println(orderItemsDf.count());
         customersDf.printSchema();
+        System.out.println(customersDf.count());
         paymentsDf.printSchema();
+        System.out.println(paymentsDf.count());
         categoryDf.printSchema();
+        System.out.println(categoryDf.count());
 
         //creating location_dim
         customersDf
@@ -79,7 +85,7 @@ public class Job01 {
 
         //creating orders_dim
         ordersDf
-                .join(customersDf, customersDf.col("customer_id").equalTo(ordersDf.col("customer_id")))
+                .join(customersDf, customersDf.col("customer_id").equalTo(ordersDf.col("customer_id")),"left")
                 .withColumn( "location_id", md5(expr("customer_city || customer_state || customer_zip_code_prefix"))).as("location_id")
                 .select(col("order_id"),
                         col("location_id"),
@@ -91,6 +97,7 @@ public class Job01 {
                         col("order_delivered_carrier_date"),
                         col("order_delivered_customer_date"),
                         col("order_estimated_delivery_date"))
+                .distinct()
                 .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","orders_dim", cnnProps)
         //        .show(false)
         ;
@@ -164,6 +171,7 @@ public class Job01 {
                         orderItemsDf.col("shipping_limit_date"),
                         orderItemsDf.col("price"),
                         orderItemsDf.col("freight_value"))
+                .distinct()
                 .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","order_items_fact", cnnProps)
         //        .show(false)
         ;
