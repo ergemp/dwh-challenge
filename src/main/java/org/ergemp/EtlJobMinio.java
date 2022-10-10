@@ -11,7 +11,7 @@ import java.util.Properties;
 
 import static org.apache.spark.sql.functions.*;
 
-public class Job01 {
+public class EtlJobMinio {
     public static void main(String[] args) {
 
         Logger.getLogger("org").setLevel(Level.ERROR);
@@ -20,9 +20,18 @@ public class Job01 {
         // configure spark
         SparkSession spark = SparkSession
                 .builder()
-                .appName("dwh.challenge.Job01")
+                .appName("EtlJobMinio")
                 .master("local")
                 .getOrCreate();
+
+
+        spark.sparkContext().hadoopConfiguration().set("fs.s3a.access.key", "minioadmin");
+        spark.sparkContext().hadoopConfiguration().set("fs.s3a.secret.key", "minioadmin");
+        spark.sparkContext().hadoopConfiguration().set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+        spark.sparkContext().hadoopConfiguration().set("fs.s3a.endpoint","http://localhost:9000");
+        spark.sparkContext().hadoopConfiguration().set("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider");
+        spark.sparkContext().hadoopConfiguration().set("fs.s3a.connection.ssl.enabled", "false");
+        spark.sparkContext().hadoopConfiguration().set("fs.s3a.path.style.access", "true");
 
 
         Properties cnnProps = new Properties();
@@ -45,6 +54,8 @@ public class Job01 {
         Dataset<Row> paymentsDf = spark.read().option("header",true).csv(paymentsPath);
         Dataset<Row> categoryDf = spark.read().option("header",true).csv(categoryNamePath);
 
+        /*
+        // schema control
         productsDf.printSchema();
         System.out.println(productsDf.count());
         ordersDf.printSchema();
@@ -57,6 +68,7 @@ public class Job01 {
         System.out.println(paymentsDf.count());
         categoryDf.printSchema();
         System.out.println(categoryDf.count());
+        */
 
         //creating location_dim
         customersDf
@@ -67,8 +79,20 @@ public class Job01 {
                         col("customer_state").as("location_state"),
                         col("customer_zip_code_prefix").as("location_zip_code_prefix"))
                 .distinct()
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","location_dim", cnnProps)
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .mode(SaveMode.Overwrite)
+                .option("header",true)
+                /*
+                .option("fs.s3a.access.key", "minioadmin")
+                .option("fs.s3a.secret.key", "minioadmin")
+                .option("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+                .option("fs.s3a.endpoint","http://localhost:9000")
+                .option("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+                .option("fs.s3a.connection.ssl.enabled", "false")
+                .option("fs.s3a.path.style.access", "true")
+                */
+                .csv("s3a://dwh-challenge/location_dim")
         ;
 
         //creating customers_dim
@@ -78,9 +102,11 @@ public class Job01 {
                         col("location_id"),
                         col("customer_id"),
                         col("customer_unique_id"))
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","customers_dim", cnnProps)
-
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/customers_dim")
         ;
 
         //creating orders_dim
@@ -98,8 +124,11 @@ public class Job01 {
                         col("order_delivered_customer_date"),
                         col("order_estimated_delivery_date"))
                 .distinct()
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","orders_dim", cnnProps)
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/orders_dim")
         ;
 
         //creating payments_dim
@@ -109,8 +138,11 @@ public class Job01 {
                         col("payment_type"),
                         col("payment_installments"),
                         col("payment_value"))
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","payments_dim", cnnProps)
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/payments_dim")
         ;
 
         //creating products_dim
@@ -125,8 +157,11 @@ public class Job01 {
                         col("product_length_cm"),
                         col("product_height_cm"),
                         col("product_width_cm"))
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","products_dim", cnnProps)
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/products_dim")
         ;
 
         //creating category_dim
@@ -134,10 +169,12 @@ public class Job01 {
                 .select(
                         col("product_category_name").alias("category_name"),
                         col("product_category_name_english").alias("category_name_english"))
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","category_dim", cnnProps)
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/category_dim")
         ;
-
 
         //creating date_dim
         spark.sql(" select " +
@@ -154,10 +191,12 @@ public class Job01 {
                         " select " +
                         " explode(sequence(to_date('2000-01-01'), to_date('2030-01-01'), interval 1 day)) as ddate" +
                         " ) ")
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","date_dim", cnnProps)
-        //        .show(100,false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/date_dim")
         ;
-
 
         //creating order_items_fact
         orderItemsDf
@@ -172,12 +211,12 @@ public class Job01 {
                         orderItemsDf.col("price"),
                         orderItemsDf.col("freight_value"))
                 .distinct()
-                .write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","order_items_fact", cnnProps)
-        //        .show(false)
+                .repartition(4)
+                .write()
+                .option("header",true)
+                .mode(SaveMode.Overwrite)
+                .csv("s3a://dwh-challenge/order_items_fact")
         ;
-        ;
-
-        //productsDf.write().mode(SaveMode.Overwrite).jdbc("jdbc:postgresql://localhost/postgres","products", cnnProps);
 
     }
 }

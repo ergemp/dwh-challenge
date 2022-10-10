@@ -83,7 +83,9 @@ select cd.category_name_english , count(1) total_sold from
 		  orders_dim od2
 		where (customer_id, to_timestamp(order_purchase_timestamp, 'YYYY-MM-DD HH24:MI:SS')) in
 		(
-		  select customer_id, min(to_timestamp(order_purchase_timestamp, 'YYYY-MM-DD HH24:MI:SS')) as first_order from orders_dim od group by customer_id
+		select customers_dim.customer_unique_id, min(to_timestamp(orders_dim.order_purchase_timestamp, 'YYYY-MM-DD HH24:MI:SS')) as first_date  from customers_dim
+		  join orders_dim on (customers_dim.customer_id = orders_dim.customer_id)
+		group by customers_dim.customer_unique_id
 		)
 	) first_purchases
 	on (oif.order_id = first_purchases.order_id)
